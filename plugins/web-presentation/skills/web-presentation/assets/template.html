@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>발표 제목</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* ===== RESET ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; background: var(--bg); }
+        body { font-family: var(--font-sans); color: var(--text-primary); }
+
+        /* ===== DESIGN TOKENS — 테마를 바꿀 때는 여기만 수정 ===== */
+        :root {
+            --bg: #050403;
+            --accent: #C6A55C;
+            --accent-dim: rgba(198, 165, 92, 0.15);
+            --accent-glow: rgba(198, 165, 92, 0.3);
+            --text-primary: #F2EBDD;
+            --text-secondary: #A39B87;
+            --text-dim: #6B6556;
+            --border: #1F1B14;
+            --card-bg: #0A0908;
+
+            --font-sans: 'Noto Sans KR', 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', 'Noto Sans KR', monospace;
+
+            --title-size: clamp(1.8rem, 4.6vw, 3.4rem);
+            --h2-size: clamp(1.4rem, 3.2vw, 2.2rem);
+            --body-size: clamp(0.8rem, 1.2vw, 0.95rem);
+            --label-size: clamp(0.72rem, 1.1vw, 0.85rem);
+            --small-size: clamp(0.65rem, 0.85vw, 0.72rem);
+
+            --content-width: 680px;
+            --slide-padding: clamp(1.5rem, 4vw, 3.5rem);
+            --content-gap: clamp(0.8rem, 1.6vw, 1.4rem);
+            --element-gap: clamp(0.4rem, 0.8vw, 0.7rem);
+
+            --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+            --slide-dur: 0.7s;
+        }
+
+        /* ===== DECK: fixed 컨테이너 + absolute 슬라이드 (스크롤 없음) ===== */
+        .deck { position: fixed; inset: 0; overflow: hidden; touch-action: none; overscroll-behavior: none; }
+
+        .slide {
+            position: absolute; inset: 0; overflow: hidden;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            padding: var(--slide-padding);
+            opacity: 0; visibility: hidden; pointer-events: none;
+            transform: translate3d(0, 6%, 0);
+            /* visibility는 지연시켜 퇴장 슬라이드가 전환 끝까지 보이게 한다 */
+            transition: opacity var(--slide-dur) var(--ease-out-expo),
+                        transform var(--slide-dur) var(--ease-out-expo),
+                        visibility 0s linear var(--slide-dur);
+        }
+        .slide.is-prev { transform: translate3d(0, -6%, 0); }
+        .slide.is-next { transform: translate3d(0, 6%, 0); }
+        .slide.is-active { opacity: 1; visibility: visible; pointer-events: auto; transform: none; transition-delay: 0s; }
+        .slide.snap { transition: none !important; }
+
+        .slide-content {
+            flex: 1; width: 100%; max-width: var(--content-width); max-height: 100%; overflow: hidden;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+
+        /* 배경 효과 (스캔라인 + 그리드) */
+        .slide::before {
+            content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 10;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px,
+                rgba(255, 245, 220, 0.005) 2px, rgba(255, 245, 220, 0.005) 4px);
+        }
+        .slide::after {
+            content: ''; position: absolute; inset: 0; pointer-events: none;
+            background-image: linear-gradient(rgba(198, 165, 92, 0.02) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(198, 165, 92, 0.02) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        /* ===== 등장 애니메이션: 슬라이드가 .visible이면 .reveal 요소가 순서대로 나타남 ===== */
+        .reveal { opacity: 0; transform: translateY(20px);
+            transition: opacity 0.7s var(--ease-out-expo), transform 0.7s var(--ease-out-expo); }
+        .slide.visible .reveal { opacity: 1; transform: translateY(0); }
+        .reveal:nth-child(1) { transition-delay: 0.1s; }
+        .reveal:nth-child(2) { transition-delay: 0.2s; }
+        .reveal:nth-child(3) { transition-delay: 0.3s; }
+        .reveal:nth-child(4) { transition-delay: 0.4s; }
+        .reveal:nth-child(5) { transition-delay: 0.5s; }
+        .reveal:nth-child(6) { transition-delay: 0.6s; }
+
+        @keyframes blink { 50% { opacity: 0; } }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 8px var(--accent-dim); }
+            50% { box-shadow: 0 0 20px var(--accent-glow); }
+        }
+
+        /* ===== 공용 컴포넌트 ===== */
+        .badge { font-family: var(--font-mono); font-size: var(--label-size); color: var(--accent);
+            letter-spacing: 0.15em; text-transform: uppercase; display: flex; align-items: center;
+            gap: 0.4rem; margin-bottom: var(--content-gap); }
+        .badge::before { content: '>'; animation: blink 1s step-end infinite; }
+
+        .title { font-size: var(--title-size); font-weight: 700; line-height: 1.15; text-align: center; }
+        .title.h2 { font-size: var(--h2-size); }
+        .title .accent, .big-title .accent { color: var(--accent); }
+        .big-title { font-size: clamp(2.2rem, 5.4vw, 4.2rem); font-weight: 900; line-height: 1.1; text-align: center; }
+
+        .desc { font-size: var(--body-size); color: var(--text-secondary); text-align: center;
+            line-height: 1.7; max-width: 480px; margin-top: var(--content-gap); }
+        .note { font-family: var(--font-mono); font-size: var(--small-size); color: var(--text-dim);
+            margin-top: var(--content-gap); text-align: center; }
+
+        .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px;
+            padding: clamp(0.7rem, 1.4vw, 1.05rem); }
+        .card-title { font-family: var(--font-mono); font-size: var(--label-size); color: var(--accent);
+            margin-bottom: var(--element-gap); }
+        .card-text { font-size: var(--small-size); color: var(--text-secondary); line-height: 1.6; }
+
+        .grid { display: grid; gap: clamp(0.6rem, 1.4vw, 1.05rem); width: 100%; max-width: 480px;
+            margin-top: var(--content-gap); }
+        .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+        .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+
+        .list { list-style: none; display: flex; flex-direction: column; gap: var(--element-gap);
+            width: 100%; max-width: 420px; margin-top: var(--content-gap); }
+        .list li { font-size: var(--body-size); background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: 5px; padding: clamp(0.4rem, 0.7vw, 0.55rem) clamp(0.7rem, 1vw, 0.85rem);
+            display: flex; align-items: center; gap: 0.5rem; }
+        .list li::before { content: '>'; color: var(--accent); font-family: var(--font-mono);
+            font-size: var(--small-size); }
+
+        .terminal { background: #0C0B09; border: 1px solid var(--border); border-radius: 6px;
+            width: 100%; max-width: 480px; overflow: hidden; margin-top: var(--content-gap); }
+        .terminal-bar { background: #12100D; padding: 0.4rem 0.7rem; display: flex; gap: 5px;
+            border-bottom: 1px solid var(--border); }
+        .terminal-bar i { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
+        .terminal-body { padding: clamp(0.75rem, 1.4vw, 1.1rem); font-family: var(--font-mono);
+            font-size: var(--body-size); line-height: 1.8; color: var(--text-primary); }
+        .terminal-body .prompt { color: var(--accent); }
+
+        /* ===== 번호 · 진행 바 · 힌트 (deck 바깥 고정 UI) ===== */
+        .progress-bar { position: fixed; top: 0; left: 0; height: 2px; width: 0%; z-index: 100;
+            background: var(--accent); transition: width 0.3s ease; }
+        .slide-counter { position: fixed; right: clamp(0.8rem, 2vw, 1.6rem); bottom: clamp(0.6rem, 1.5vw, 1.2rem);
+            z-index: 100; font-family: var(--font-mono); font-size: var(--label-size); color: var(--text-dim);
+            font-variant-numeric: tabular-nums; letter-spacing: 0.08em; pointer-events: none; }
+        .slide-counter .current { color: var(--accent); }
+        .key-hint { position: fixed; left: clamp(0.8rem, 2vw, 1.6rem); bottom: clamp(0.6rem, 1.5vw, 1.2rem);
+            z-index: 100; font-family: var(--font-mono); font-size: var(--small-size); color: var(--text-dim);
+            transition: opacity 0.6s; pointer-events: none; }
+        .key-hint.hide { opacity: 0; }
+
+        /* ===== 반응형 ===== */
+        @media (max-height: 600px) {
+            :root { --slide-padding: clamp(0.8rem, 2vw, 1.6rem); --content-gap: clamp(0.35rem, 0.8vw, 0.65rem);
+                    --title-size: clamp(1.3rem, 3.6vw, 2.1rem); --body-size: clamp(0.7rem, 1vw, 0.85rem); }
+        }
+        @media (max-width: 600px) {
+            .grid.cols-2, .grid.cols-3 { grid-template-columns: 1fr; }
+            .key-hint { display: none; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            :root { --slide-dur: 0s; }
+            .reveal { transition: opacity 0.3s ease; transform: none; }
+            .badge::before { animation: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="progress-bar" role="progressbar" aria-label="진행률" aria-valuemin="1"></div>
+    <div class="slide-counter" aria-live="polite" aria-atomic="true"></div>
+    <div class="key-hint">← → 이동 · F 전체화면</div>
+
+    <main class="deck">
+
+        <!-- ===== 슬라이드는 이 아래만 교체한다. 번호/총 개수는 JS가 자동 계산 ===== -->
+
+        <!-- 타이틀 -->
+        <section class="slide">
+            <div class="slide-content">
+                <div class="badge reveal">intro</div>
+                <div class="big-title reveal"><span class="accent">발표 제목</span><br>부제목</div>
+                <div class="note reveal">// 발표자 · 날짜</div>
+            </div>
+        </section>
+
+        <!-- 목록 -->
+        <section class="slide">
+            <div class="slide-content">
+                <div class="badge reveal">agenda</div>
+                <h2 class="title h2 reveal"><span class="accent">핵심</span> 포인트</h2>
+                <ul class="list">
+                    <li class="reveal">첫 번째 항목</li>
+                    <li class="reveal">두 번째 항목</li>
+                    <li class="reveal">세 번째 항목</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- 2단 카드 -->
+        <section class="slide">
+            <div class="slide-content">
+                <div class="badge reveal">compare</div>
+                <h2 class="title h2 reveal">A <span class="accent">vs</span> B</h2>
+                <div class="grid cols-2">
+                    <div class="card reveal"><div class="card-title">A</div><div class="card-text">설명 한 줄<br>설명 두 줄</div></div>
+                    <div class="card reveal"><div class="card-title">B</div><div class="card-text">설명 한 줄<br>설명 두 줄</div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 터미널/코드 -->
+        <section class="slide">
+            <div class="slide-content">
+                <div class="badge reveal">demo</div>
+                <h2 class="title h2 reveal">명령어는 <span class="accent">간단</span>합니다</h2>
+                <div class="terminal reveal">
+                    <div class="terminal-bar"><i></i><i></i><i></i></div>
+                    <div class="terminal-body"><span class="prompt">&gt; </span>npm run build</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 마무리 -->
+        <section class="slide">
+            <div class="slide-content">
+                <div class="badge reveal">thanks</div>
+                <h2 class="title reveal"><span class="accent">감사합니다</span></h2>
+                <p class="desc reveal">질문이 있으시면 말씀해 주세요</p>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        class SlidePresentation {
+            constructor() {
+                this.deck = document.querySelector('.deck');
+                this.slides = [...document.querySelectorAll('.slide')];
+                this.bar = document.querySelector('.progress-bar');
+                this.counter = document.querySelector('.slide-counter');
+                this.hint = document.querySelector('.key-hint');
+                this.total = this.slides.length;
+                this.busy = false;
+                this.pending = null;
+                this.lockMs = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 750;
+
+                this.current = this.fromHash();
+                this.paint(true);
+
+                this.bindKeys();
+                this.bindWheel();
+                this.bindSwipe();
+                addEventListener('hashchange', () => {
+                    const i = this.fromHash();
+                    if (i !== this.current) this.goTo(i);
+                });
+                // 전체화면 진입/해제 시 레이아웃은 vh 기반이라 별도 처리가 필요 없다
+                setTimeout(() => this.hint && this.hint.classList.add('hide'), 4000);
+            }
+
+            fromHash() {
+                const n = parseInt(location.hash.slice(1), 10);
+                return Number.isNaN(n) ? 0 : Math.min(Math.max(n - 1, 0), this.total - 1);
+            }
+
+            // 모든 슬라이드의 상태 클래스·번호·진행 바·해시를 한곳에서 갱신
+            paint(initial = false) {
+                this.slides.forEach((s, i) => {
+                    if (initial) s.classList.add('snap');
+                    s.classList.toggle('is-active', i === this.current);
+                    s.classList.toggle('is-prev', i < this.current);
+                    s.classList.toggle('is-next', i > this.current);
+                    if (i === this.current) s.classList.add('visible');
+                    s.toggleAttribute('inert', i !== this.current);
+                    s.setAttribute('aria-label', `${i + 1} / ${this.total}`);
+                });
+                if (initial) {
+                    void this.deck.offsetWidth;
+                    this.slides.forEach(s => s.classList.remove('snap'));
+                }
+                const pad = n => String(n).padStart(2, '0');
+                this.counter.innerHTML = `<span class="current">${pad(this.current + 1)}</span> / ${pad(this.total)}`;
+                this.bar.style.width = (this.total > 1 ? this.current / (this.total - 1) * 100 : 100) + '%';
+                this.bar.setAttribute('aria-valuemax', this.total);
+                this.bar.setAttribute('aria-valuenow', this.current + 1);
+                history.replaceState(null, '', '#' + (this.current + 1));
+            }
+
+            goTo(index) {
+                index = Math.min(Math.max(index, 0), this.total - 1);
+                if (index === this.current) return;
+                if (this.busy) { this.pending = index; return; }   // 전환 중 입력은 마지막 것만 보관
+
+                // 이동과 무관한 슬라이드는 애니메이션 없이 제자리로
+                const from = this.current;
+                const others = this.slides.filter((_, i) => i !== from && i !== index);
+                others.forEach(s => s.classList.add('snap'));
+                this.current = index;
+                this.paint();
+                void this.deck.offsetWidth;
+                others.forEach(s => s.classList.remove('snap'));
+
+                this.busy = true;
+                setTimeout(() => {   // transitionend 누락에 대비해 타이머로 잠금 해제
+                    this.busy = false;
+                    this.slides.forEach((s, i) => { if (i !== this.current) s.classList.remove('visible'); });
+                    if (this.pending !== null) { const p = this.pending; this.pending = null; this.goTo(p); }
+                }, this.lockMs);
+            }
+
+            next() { this.goTo(this.current + 1); }
+            prev() { this.goTo(this.current - 1); }
+
+            bindKeys() {
+                document.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey || e.altKey || e.metaKey) return;
+                    if (e.target.closest('input,textarea,select,[contenteditable="true"]')) return;
+                    switch (e.key) {
+                        case 'ArrowRight': case 'ArrowDown': case 'PageDown':
+                            e.preventDefault(); this.next(); break;
+                        case 'ArrowLeft': case 'ArrowUp': case 'PageUp':
+                            e.preventDefault(); this.prev(); break;
+                        case ' ':
+                            e.preventDefault(); e.shiftKey ? this.prev() : this.next(); break;
+                        case 'Home': e.preventDefault(); this.goTo(0); break;
+                        case 'End':  e.preventDefault(); this.goTo(this.total - 1); break;
+                        case 'f': case 'F': this.toggleFullscreen(); break;
+                    }
+                });
+            }
+
+            bindWheel() {
+                let last = 0;
+                addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const now = performance.now();
+                    if (Math.abs(e.deltaY) < 30 || now - last < 700) return;
+                    last = now;
+                    e.deltaY > 0 ? this.next() : this.prev();
+                }, { passive: false });
+            }
+
+            bindSwipe() {
+                let sx, sy;
+                this.deck.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; });
+                this.deck.addEventListener('pointerup', (e) => {
+                    if (sx == null) return;
+                    const dx = e.clientX - sx, dy = e.clientY - sy;
+                    sx = sy = undefined;
+                    if (Math.max(Math.abs(dx), Math.abs(dy)) < 50) return;
+                    (Math.abs(dy) > Math.abs(dx) ? dy : dx) < 0 ? this.next() : this.prev();
+                });
+                this.deck.addEventListener('pointercancel', () => { sx = sy = undefined; });
+            }
+
+            toggleFullscreen() {
+                const el = document.documentElement;
+                if (!document.fullscreenElement) {
+                    // iPhone Safari 등 미지원 환경에서는 조용히 무시
+                    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+                } else {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => new SlidePresentation());
+    </script>
+</body>
+</html>
